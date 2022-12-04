@@ -1,11 +1,13 @@
-use std::fs;
+use std::io;
 use std::ops;
-pub fn solve() -> Result<(), std::io::Error> {
-    let content = fs::read_to_string("input/day1.txt")?;
+
+use crate::input_reader;
+pub fn solve() -> io::Result<()> {
+    let lines = input_reader::read_input("input/day1.txt")?;
     let mut calories: Vec<Vec<i32>> = Vec::new();
     calories.push(Vec::new());
     let mut idx = 0usize;
-    content.split("\n").for_each(|x| -> () {
+    lines.into_iter().for_each(|x| -> () {
         if x.is_empty() {
             calories.push(Vec::new());
             idx += 1;
@@ -16,8 +18,8 @@ pub fn solve() -> Result<(), std::io::Error> {
 
     let mut sum_calories = calories
         .into_iter()
-        .map(|x| -> i32 { x.into_iter().fold(0, ops::Add::add) })
-        .collect::<Vec<i32>>();
+        .map(|x| x.into_iter().fold(0, ops::Add::add))
+        .collect::<Vec<_>>();
     sum_calories.sort_by(|a, b| b.cmp(a));
     println!("Max calories: {}", sum_calories.first().unwrap_or(&-1i32));
 

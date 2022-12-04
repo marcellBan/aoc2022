@@ -1,16 +1,22 @@
-use std::fs;
 use std::io;
 use std::ops;
+use substring::Substring;
+
+use crate::input_reader;
 
 pub fn solve() -> io::Result<()> {
-    let content = fs::read_to_string("input/day3.txt")?;
+    let sacks = input_reader::read_input("input/day3.txt")?;
 
-    let sacks = content.split("\n").collect::<Vec<&str>>();
     let compartments = sacks
         .clone()
         .into_iter()
-        .map(|x| (&x[..x.len() / 2], &x[x.len() / 2..]))
-        .collect::<Vec<(&str, &str)>>();
+        .map(|x| {
+            (
+                x.substring(0, x.len() / 2).to_owned(),
+                x.substring(x.len() / 2, x.len()).to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
 
     let appears_in_both = compartments
         .into_iter()
@@ -21,9 +27,9 @@ pub fn solve() -> io::Result<()> {
                     return c;
                 }
             }
-            panic!("No badge found for {:?}", x);
+            panic!("No badge found for ({:?},{:?})", one, two);
         })
-        .collect::<Vec<char>>();
+        .collect::<Vec<_>>();
 
     let priority_sum = appears_in_both
         .into_iter()

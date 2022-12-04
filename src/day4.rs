@@ -1,22 +1,22 @@
-use std::fs;
 use std::io;
 
-pub fn solve() -> io::Result<()> {
-    let content = fs::read_to_string("input/day4.txt")?;
+use crate::input_reader;
 
-    let pairs = content
-        .split("\n")
-        .map(|x| x.split(",").collect::<Vec<&str>>())
+pub fn solve() -> io::Result<()> {
+    let lines = input_reader::read_input("input/day4.txt")?;
+
+    let pairs = lines
+        .into_iter()
         .map(|x| {
-            x.into_iter()
-                .map(|z| {
-                    z.split("-")
+            x.split(",")
+                .map(|v| {
+                    v.split("-")
                         .map(|y| y.parse::<i32>().unwrap())
-                        .collect::<Vec<i32>>()
+                        .collect::<Vec<_>>()
                 })
-                .collect::<Vec<Vec<i32>>>()
+                .collect::<Vec<_>>()
         })
-        .collect::<Vec<Vec<Vec<i32>>>>();
+        .collect::<Vec<_>>();
 
     let mut free_elves = 0;
     let mut overlaps = 0;

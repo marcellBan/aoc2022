@@ -1,42 +1,45 @@
 use std::collections::HashMap;
-use std::fs;
+use std::io;
 use std::ops;
 
-pub fn solve() -> Result<(), std::io::Error> {
+use crate::input_reader;
+
+pub fn solve() -> io::Result<()> {
     let scores = HashMap::from([
-        ("A X", 4),
-        ("A Y", 8),
-        ("A Z", 3),
-        ("B X", 1),
-        ("B Y", 5),
-        ("B Z", 9),
-        ("C X", 7),
-        ("C Y", 2),
-        ("C Z", 6),
+        ("A X".to_owned(), 4),
+        ("A Y".to_owned(), 8),
+        ("A Z".to_owned(), 3),
+        ("B X".to_owned(), 1),
+        ("B Y".to_owned(), 5),
+        ("B Z".to_owned(), 9),
+        ("C X".to_owned(), 7),
+        ("C Y".to_owned(), 2),
+        ("C Z".to_owned(), 6),
     ]);
     let moves = HashMap::from([
-        ("A X", "A Z"),
-        ("A Y", "A X"),
-        ("A Z", "A Y"),
-        ("B X", "B X"),
-        ("B Y", "B Y"),
-        ("B Z", "B Z"),
-        ("C X", "C Y"),
-        ("C Y", "C Z"),
-        ("C Z", "C X"),
+        ("A X".to_owned(), "A Z".to_owned()),
+        ("A Y".to_owned(), "A X".to_owned()),
+        ("A Z".to_owned(), "A Y".to_owned()),
+        ("B X".to_owned(), "B X".to_owned()),
+        ("B Y".to_owned(), "B Y".to_owned()),
+        ("B Z".to_owned(), "B Z".to_owned()),
+        ("C X".to_owned(), "C Y".to_owned()),
+        ("C Y".to_owned(), "C Z".to_owned()),
+        ("C Z".to_owned(), "C X".to_owned()),
     ]);
 
-    let content = fs::read_to_string("input/day2.txt")?;
-    let score = content
-        .split("\n")
-        .map(|x| scores[x])
+    let lines = input_reader::read_input("input/day2.txt")?;
+    let score = lines
+        .clone()
+        .into_iter()
+        .map(|x| scores[&x])
         .fold(0, ops::Add::add);
 
     println!("Basic Score: {}", score);
 
-    let score = content
-        .split("\n")
-        .map(|x| scores[moves[x]])
+    let score = lines
+        .into_iter()
+        .map(|x| scores[&moves[&x]])
         .fold(0, ops::Add::add);
 
     println!("Correct Score: {}", score);
