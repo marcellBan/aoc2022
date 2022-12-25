@@ -9,10 +9,11 @@ mod day5;
 mod day6;
 mod day7;
 mod day8;
+mod day9;
 mod input_reader;
 
 fn main() -> Result<(), std::io::Error> {
-    day8::solve()?;
+    day9::solve()?;
 
     Ok(())
 }
