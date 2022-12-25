@@ -30,7 +30,20 @@ fn adjust_pair_position(lead: &Pos, follow: &mut Pos) -> () {
     if delta_x < 2 && delta_y < 2 {
         return;
     }
-    if delta_x > 1 {
+    if delta_x > 1 && delta_y > 1 {
+        *follow = Pos {
+            x: match lead.x.cmp(&follow.x) {
+                Ordering::Less => lead.x + 1,
+                Ordering::Greater => lead.x - 1,
+                _ => panic!("Not Possible"),
+            },
+            y: match lead.y.cmp(&follow.y) {
+                Ordering::Less => lead.y + 1,
+                Ordering::Greater => lead.y - 1,
+                _ => panic!("Not Possible"),
+            },
+        };
+    } else if delta_x > 1 {
         *follow = Pos {
             x: match lead.x.cmp(&follow.x) {
                 Ordering::Less => lead.x + 1,
