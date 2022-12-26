@@ -2,27 +2,8 @@ use std::{cell::RefCell, collections::VecDeque, io};
 
 #[derive(Debug)]
 enum Operation {
-    Add(Option<u64>, Option<u64>),
-    Mul(Option<u64>, Option<u64>),
-}
-
-impl From<&str> for Operation {
-    fn from(note_line: &str) -> Self {
-        let parts = note_line.split(" ").collect::<Vec<_>>();
-        let left = match parts[0] {
-            "old" => None,
-            num => Some(num.parse::<u64>().unwrap()),
-        };
-        let right = match parts[2] {
-            "old" => None,
-            num => Some(num.parse::<u64>().unwrap()),
-        };
-        match parts[1] {
-            "+" => Operation::Add(left, right),
-            "*" => Operation::Mul(left, right),
-            _ => panic!("Unknown operation"),
-        }
-    }
+    Add(Option<u64>),
+    Mul(Option<u64>),
 }
 
 #[derive(Debug, Clone)]
@@ -38,70 +19,6 @@ enum Worry {
     Full(Vec<TestValue>),
 }
 
-impl From<u64> for Worry {
-    fn from(value: u64) -> Self {
-        Self::Base(value)
-    }
-}
-
-impl Worry {
-    fn convert(self: &Self, test_values: &Vec<u64>) -> Self {
-        match self {
-            Self::Base(val) => Self::Full(
-                test_values
-                    .iter()
-                    .map(|tv| TestValue {
-                        value: *tv,
-                        is_divisor: val % tv == 0,
-                        remainder: val % tv,
-                    })
-                    .collect::<Vec<_>>(),
-            ),
-            Self::Full(_) => self.clone(),
-        }
-    }
-
-    fn test_for(self: &Self, test_value: u64) -> bool {
-        match self {
-            Self::Base(val) => val % test_value == 0,
-            Self::Full(tvs) => tvs.iter().any(|tv| tv.value == test_value && tv.is_divisor),
-        }
-    }
-
-    fn update(self: &Self, op: &Operation) -> Self {
-        match self {
-            Self::Base(val) => match op {
-                Operation::Add(_, r) => Worry::from(*val + r.unwrap_or(*val)),
-                Operation::Mul(_, r) => Worry::from(*val * r.unwrap_or(*val)),
-            },
-            Self::Full(tvs) => Self::Full(
-                tvs.iter()
-                    .map(|tv| match op {
-                        Operation::Add(_, r) => {
-                            let new_remainder =
-                                (tv.remainder + r.unwrap_or(tv.remainder) % tv.value) % tv.value;
-                            TestValue {
-                                value: tv.value,
-                                is_divisor: new_remainder == 0,
-                                remainder: new_remainder,
-                            }
-                        }
-                        Operation::Mul(_, r) => {
-                            let new_remainder =
-                                (tv.remainder * r.unwrap_or(tv.remainder) % tv.value) % tv.value;
-                            TestValue {
-                                value: tv.value,
-                                is_divisor: new_remainder == 0,
-                                remainder: new_remainder,
-                            }
-                        }
-                    })
-                    .collect::<Vec<_>>(),
-            ),
-        }
-    }
-}
-
 #[derive(Debug)]
 struct Monkey {
     items: RefCell<VecDeque<Worry>>,
@@ -110,6 +27,27 @@ struct Monkey {
     positive_test_target: usize,
     negative_test_target: usize,
     inspected_item_count: RefCell<u128>,
+}
+
+impl From<&str> for Operation {
+    fn from(note_line: &str) -> Self {
+        let parts = note_line.split(" ").collect::<Vec<_>>();
+        let right = match parts[2] {
+            "old" => None,
+            num => Some(num.parse::<u64>().unwrap()),
+        };
+        match parts[1] {
+            "+" => Operation::Add(right),
+            "*" => Operation::Mul(right),
+            _ => panic!("Unknown operation"),
+        }
+    }
+}
+
+impl From<u64> for Worry {
+    fn from(value: u64) -> Self {
+        Self::Base(value)
+    }
 }
 
 impl From<&[String]> for Monkey {
@@ -142,6 +80,61 @@ impl From<&[String]> for Monkey {
                 .parse::<usize>()
                 .unwrap(),
             inspected_item_count: 0.into(),
+        }
+    }
+}
+
+impl Worry {
+    fn convert(self: &Self, test_values: &Vec<u64>) -> Self {
+        match self {
+            Self::Base(val) => Self::Full(
+                test_values
+                    .iter()
+                    .map(|tv| TestValue {
+                        value: *tv,
+                        is_divisor: val % tv == 0,
+                        remainder: val % tv,
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            Self::Full(_) => panic!("Tried to convert Worry::Full!"),
+        }
+    }
+
+    fn test_for(self: &Self, test_value: u64) -> bool {
+        match self {
+            Self::Base(val) => val % test_value == 0,
+            Self::Full(tvs) => tvs.iter().any(|tv| tv.value == test_value && tv.is_divisor),
+        }
+    }
+
+    fn update(self: &Self, op: &Operation) -> Self {
+        match self {
+            Self::Base(_) => panic!("Tried to update Worry::Base"),
+            Self::Full(tvs) => Self::Full(
+                tvs.iter()
+                    .map(|tv| match op {
+                        Operation::Add(r) => {
+                            let new_remainder =
+                                (tv.remainder + r.unwrap_or(tv.remainder) % tv.value) % tv.value;
+                            TestValue {
+                                value: tv.value,
+                                is_divisor: new_remainder == 0,
+                                remainder: new_remainder,
+                            }
+                        }
+                        Operation::Mul(r) => {
+                            let new_remainder =
+                                (tv.remainder * r.unwrap_or(tv.remainder) % tv.value) % tv.value;
+                            TestValue {
+                                value: tv.value,
+                                is_divisor: new_remainder == 0,
+                                remainder: new_remainder,
+                            }
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            ),
         }
     }
 }
