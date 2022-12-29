@@ -25,6 +25,7 @@ impl From<(usize, usize)> for Pos {
     }
 }
 
+#[derive(Clone)]
 struct TracePos {
     pos: Pos,
     possible_steps: RefCell<Vec<Pos>>,
@@ -44,13 +45,13 @@ impl From<&Vec<String>> for Map {
             .collect::<Vec<_>>();
 
         let mut end = Pos::default();
-        let mut current = Pos::default();
+        let mut start = Pos::default();
 
         for row in 0..height_map.len() {
             for col in 0..height_map[0].len() {
                 match char::from_u32(height_map[row][col]).unwrap() {
                     'S' => {
-                        current = Pos::from((col, row));
+                        start = Pos::from((col, row));
                         height_map[row][col] = 'a' as u32;
                     }
                     'E' => {
@@ -63,8 +64,8 @@ impl From<&Vec<String>> for Map {
         }
         Map {
             data: height_map,
-            start: current,
-            end: end,
+            start,
+            end,
         }
     }
 }
@@ -108,33 +109,55 @@ pub fn solve() -> io::Result<()> {
     let lines = input_reader::read_input("input/day12.in")?;
 
     let map = Map::from(&lines);
-    let mut current_pos = map.start.clone();
 
     let mut visited: HashSet<Pos> = HashSet::new();
-    visited.insert(current_pos.clone());
-    let mut trace: VecDeque<TracePos> = VecDeque::new();
-    trace.push_back(TracePos {
-        pos: current_pos.clone(),
-        possible_steps: generate_valid_steps(&current_pos, &map, &visited).into(),
+    visited.insert(map.start.clone());
+    let mut path_taken: Vec<TracePos> = Vec::new();
+    path_taken.push(TracePos {
+        pos: map.start.clone(),
+        possible_steps: generate_valid_steps(&map.start, &map, &visited).into(),
     });
 
-    while current_pos != map.end && !trace.is_empty() {
-        let maybe_next_pos = trace.back().unwrap().possible_steps.borrow_mut().pop();
+    let mut min_path_length = usize::MAX;
+    let mut min_path: Option<Vec<TracePos>> = None;
+
+    while !path_taken.is_empty() {
+        let maybe_next_pos = path_taken.last().unwrap().possible_steps.borrow_mut().pop();
         let next_pos = if let Some(p) = maybe_next_pos {
             p
         } else {
-            trace.pop_back().unwrap();
+            path_taken.pop();
             continue;
         };
-        trace.push_back(TracePos {
+        path_taken.push(TracePos {
             pos: next_pos.clone(),
             possible_steps: generate_valid_steps(&next_pos, &map, &visited).into(),
         });
         visited.insert(next_pos.clone());
-        current_pos = next_pos;
+        if next_pos == map.end || path_taken.len() >= min_path_length {
+            if min_path_length > path_taken.len() {
+                min_path_length = path_taken.len();
+                min_path = Some(path_taken.clone());
+            }
+            let rem = path_taken.pop().unwrap();
+            visited.remove(&rem.pos);
+            let mut tp = if let Some(x) = path_taken.last() {
+                x.clone()
+            } else {
+                break;
+            };
+            while tp.possible_steps.borrow().is_empty() {
+                tp = if let Some(t) = path_taken.pop() {
+                    visited.remove(&t.pos);
+                    t
+                } else {
+                    break;
+                };
+            }
+        }
     }
 
-    println!("Took {} steps", trace.len() - 1);
+    println!("Took {} steps", min_path.unwrap().len() - 1);
 
     Ok(())
 }
