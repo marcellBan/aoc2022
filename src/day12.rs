@@ -1,7 +1,8 @@
 use std::{
     cell::RefCell,
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     io,
+    rc::Rc,
 };
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
@@ -25,16 +26,17 @@ impl From<(usize, usize)> for Pos {
     }
 }
 
-#[derive(Clone)]
-struct TracePos {
+#[derive(Clone, PartialEq, Eq)]
+struct Node {
+    height: char,
     pos: Pos,
-    possible_steps: RefCell<Vec<Pos>>,
+    neighbours: RefCell<Vec<Rc<Node>>>,
 }
 
 struct Map {
-    data: Vec<Vec<u32>>,
-    start: Pos,
-    end: Pos,
+    nodes: HashMap<Pos, Rc<Node>>,
+    start: Rc<Node>,
+    end: Rc<Node>,
 }
 
 impl From<&Vec<String>> for Map {
@@ -62,46 +64,109 @@ impl From<&Vec<String>> for Map {
                 }
             }
         }
-        Map {
-            data: height_map,
-            start,
-            end,
+        let mut nodes: HashMap<Pos, Rc<Node>> = HashMap::new();
+        (0..height_map.len()).for_each(|row| {
+            (0..height_map[0].len()).for_each(|col| {
+                nodes.insert(
+                    Pos::from((col, row)),
+                    Node {
+                        height: char::from_u32(height_map[row][col]).unwrap(),
+                        pos: Pos::from((col, row)),
+                        neighbours: Vec::new().into(),
+                    }
+                    .into(),
+                );
+            })
+        });
+        for (p, n) in &nodes {
+            *n.neighbours.borrow_mut() = generate_valid_neighbour_positions(p, &height_map)
+                .iter()
+                .map(|x| nodes.get(x).unwrap().to_owned())
+                .collect::<Vec<_>>();
         }
+        let start = nodes.get(&start).unwrap().to_owned();
+        let end = nodes.get(&end).unwrap().to_owned();
+        Map { nodes, start, end }
     }
 }
 
 impl Map {
-    fn at(self: &Self, pos: &Pos) -> u32 {
-        self.data[pos.y][pos.x]
-    }
+    fn find_shortest_path_from_start(self: &Self, start_pos: &Pos) -> usize {
+        let mut dist: HashMap<Pos, usize> = HashMap::new();
+        let mut prev: HashMap<Pos, Option<Rc<Node>>> = HashMap::new();
+        let mut to_process: HashSet<Pos> = HashSet::new();
 
-    fn size(self: &Self) -> (usize, usize) {
-        (self.data.len(), self.data[0].len())
+        for (p, _) in &self.nodes {
+            dist.insert(p.clone(), usize::MAX);
+            prev.insert(p.clone(), None);
+            to_process.insert(p.clone());
+        }
+        *dist.get_mut(start_pos).unwrap() = 0;
+
+        while !to_process.is_empty() {
+            let curr = to_process
+                .iter()
+                .min_by_key(|p| dist.get(p).unwrap())
+                .unwrap()
+                .clone();
+            if curr == self.end.pos || dist.get(&curr).unwrap() == &usize::MAX {
+                break;
+            }
+            to_process.remove(&curr);
+
+            let interesting_neighbours = self
+                .nodes
+                .get(&curr)
+                .unwrap()
+                .neighbours
+                .borrow()
+                .iter()
+                .filter(|n| to_process.contains(&n.pos))
+                .map(|n| n.pos.clone())
+                .collect::<Vec<_>>();
+
+            for neighbour_pos in interesting_neighbours {
+                let alt = dist.get(&curr).unwrap() + 1;
+                if alt < *dist.get(&neighbour_pos).unwrap() {
+                    *dist.get_mut(&neighbour_pos).unwrap() = alt;
+                    *prev.get_mut(&neighbour_pos).unwrap() =
+                        self.nodes.get(&curr).unwrap().to_owned().into();
+                }
+            }
+        }
+
+        *dist.get(&self.end.pos).unwrap()
+    }
+    fn find_shortest_path_from_end(self: &Self) -> usize {
+        self.nodes
+            .iter()
+            .filter(|(_, n)| n.height == 'a')
+            .map(|(p, _)| self.find_shortest_path_from_start(p))
+            .min()
+            .unwrap()
     }
 }
 
-fn generate_valid_steps(pos: &Pos, map: &Map, visited: &HashSet<Pos>) -> Vec<Pos> {
-    let mut steps = Vec::new();
-    let (rows, cols) = map.size();
+fn generate_valid_neighbour_positions(pos: &Pos, map: &Vec<Vec<u32>>) -> Vec<Pos> {
+    let mut neighbours = Vec::new();
     if pos.x > 0 {
-        steps.push(Pos::from((pos.x - 1, pos.y)));
+        neighbours.push(Pos::from((pos.x - 1, pos.y)));
     }
-    if pos.x < cols - 1 {
-        steps.push(Pos::from((pos.x + 1, pos.y)));
+    if pos.x < map[0].len() - 1 {
+        neighbours.push(Pos::from((pos.x + 1, pos.y)));
     }
     if pos.y > 0 {
-        steps.push(Pos::from((pos.x, pos.y - 1)));
+        neighbours.push(Pos::from((pos.x, pos.y - 1)));
     }
-    if pos.y < rows - 1 {
-        steps.push(Pos::from((pos.x, pos.y + 1)));
+    if pos.y < map.len() - 1 {
+        neighbours.push(Pos::from((pos.x, pos.y + 1)));
     }
-    steps = steps
+    neighbours = neighbours
         .iter()
-        .filter(|p| map.at(p) <= map.at(pos) + 1 && !visited.contains(p))
+        .filter(|p| map[p.y][p.x] <= map[pos.y][pos.x] + 1)
         .map(|p| p.clone())
         .collect::<Vec<_>>();
-    steps.sort_by_key(|p| map.at(p));
-    steps
+    neighbours
 }
 
 use crate::input_reader;
@@ -110,54 +175,15 @@ pub fn solve() -> io::Result<()> {
 
     let map = Map::from(&lines);
 
-    let mut visited: HashSet<Pos> = HashSet::new();
-    visited.insert(map.start.clone());
-    let mut path_taken: Vec<TracePos> = Vec::new();
-    path_taken.push(TracePos {
-        pos: map.start.clone(),
-        possible_steps: generate_valid_steps(&map.start, &map, &visited).into(),
-    });
+    println!(
+        "Took {} steps from start",
+        map.find_shortest_path_from_start(&map.start.pos)
+    );
 
-    let mut min_path_length = usize::MAX;
-    let mut min_path: Option<Vec<TracePos>> = None;
-
-    while !path_taken.is_empty() {
-        let maybe_next_pos = path_taken.last().unwrap().possible_steps.borrow_mut().pop();
-        let next_pos = if let Some(p) = maybe_next_pos {
-            p
-        } else {
-            path_taken.pop();
-            continue;
-        };
-        path_taken.push(TracePos {
-            pos: next_pos.clone(),
-            possible_steps: generate_valid_steps(&next_pos, &map, &visited).into(),
-        });
-        visited.insert(next_pos.clone());
-        if next_pos == map.end || path_taken.len() >= min_path_length {
-            if min_path_length > path_taken.len() {
-                min_path_length = path_taken.len();
-                min_path = Some(path_taken.clone());
-            }
-            let rem = path_taken.pop().unwrap();
-            visited.remove(&rem.pos);
-            let mut tp = if let Some(x) = path_taken.last() {
-                x.clone()
-            } else {
-                break;
-            };
-            while tp.possible_steps.borrow().is_empty() {
-                tp = if let Some(t) = path_taken.pop() {
-                    visited.remove(&t.pos);
-                    t
-                } else {
-                    break;
-                };
-            }
-        }
-    }
-
-    println!("Took {} steps", min_path.unwrap().len() - 1);
+    println!(
+        "Took {} steps from closest point",
+        map.find_shortest_path_from_end()
+    );
 
     Ok(())
 }
