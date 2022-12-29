@@ -37,6 +37,8 @@ struct Map {
     nodes: HashMap<Pos, Rc<Node>>,
     start: Rc<Node>,
     end: Rc<Node>,
+    dist: HashMap<Pos, usize>,
+    prev: HashMap<Pos, Option<Rc<Node>>>,
 }
 
 impl From<&Vec<String>> for Map {
@@ -86,30 +88,34 @@ impl From<&Vec<String>> for Map {
         }
         let start = nodes.get(&start).unwrap().to_owned();
         let end = nodes.get(&end).unwrap().to_owned();
-        Map { nodes, start, end }
+        Map {
+            nodes,
+            start,
+            end,
+            dist: HashMap::new(),
+            prev: HashMap::new(),
+        }
     }
 }
 
 impl Map {
-    fn find_shortest_path_from_start(self: &Self, start_pos: &Pos) -> usize {
-        let mut dist: HashMap<Pos, usize> = HashMap::new();
-        let mut prev: HashMap<Pos, Option<Rc<Node>>> = HashMap::new();
+    fn run_dijkstra(self: &mut Self) -> () {
         let mut to_process: HashSet<Pos> = HashSet::new();
 
         for (p, _) in &self.nodes {
-            dist.insert(p.clone(), usize::MAX);
-            prev.insert(p.clone(), None);
+            self.dist.insert(p.clone(), usize::MAX);
+            self.prev.insert(p.clone(), None);
             to_process.insert(p.clone());
         }
-        *dist.get_mut(start_pos).unwrap() = 0;
+        *self.dist.get_mut(&self.end.pos).unwrap() = 0;
 
         while !to_process.is_empty() {
             let curr = to_process
                 .iter()
-                .min_by_key(|p| dist.get(p).unwrap())
+                .min_by_key(|p| self.dist.get(p).unwrap())
                 .unwrap()
                 .clone();
-            if curr == self.end.pos || dist.get(&curr).unwrap() == &usize::MAX {
+            if self.dist.get(&curr).unwrap() == &usize::MAX {
                 break;
             }
             to_process.remove(&curr);
@@ -126,22 +132,23 @@ impl Map {
                 .collect::<Vec<_>>();
 
             for neighbour_pos in interesting_neighbours {
-                let alt = dist.get(&curr).unwrap() + 1;
-                if alt < *dist.get(&neighbour_pos).unwrap() {
-                    *dist.get_mut(&neighbour_pos).unwrap() = alt;
-                    *prev.get_mut(&neighbour_pos).unwrap() =
+                let alt = self.dist.get(&curr).unwrap() + 1;
+                if alt < *self.dist.get(&neighbour_pos).unwrap() {
+                    *self.dist.get_mut(&neighbour_pos).unwrap() = alt;
+                    *self.prev.get_mut(&neighbour_pos).unwrap() =
                         self.nodes.get(&curr).unwrap().to_owned().into();
                 }
             }
         }
-
-        *dist.get(&self.end.pos).unwrap()
+    }
+    fn distance_from_end(self: &Self, pos: &Pos) -> usize {
+        *self.dist.get(pos).unwrap()
     }
     fn find_shortest_path_from_end(self: &Self) -> usize {
         self.nodes
             .iter()
             .filter(|(_, n)| n.height == 'a')
-            .map(|(p, _)| self.find_shortest_path_from_start(p))
+            .map(|(p, _)| self.distance_from_end(p))
             .min()
             .unwrap()
     }
@@ -163,7 +170,7 @@ fn generate_valid_neighbour_positions(pos: &Pos, map: &Vec<Vec<u32>>) -> Vec<Pos
     }
     neighbours = neighbours
         .iter()
-        .filter(|p| map[p.y][p.x] <= map[pos.y][pos.x] + 1)
+        .filter(|p| map[p.y][p.x] >= map[pos.y][pos.x] - 1)
         .map(|p| p.clone())
         .collect::<Vec<_>>();
     neighbours
@@ -173,11 +180,12 @@ use crate::input_reader;
 pub fn solve() -> io::Result<()> {
     let lines = input_reader::read_input("input/day12.in")?;
 
-    let map = Map::from(&lines);
+    let mut map = Map::from(&lines);
+    map.run_dijkstra();
 
     println!(
         "Took {} steps from start",
-        map.find_shortest_path_from_start(&map.start.pos)
+        map.distance_from_end(&map.start.pos)
     );
 
     println!(
